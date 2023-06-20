@@ -45,7 +45,7 @@ skip_commands = False
 skip_ind = -1
 
 # process contents
-input = "\n".join([line.strip() for line in input.split('\n')])
+input = "\n".join([line.strip() for line in input.split("\n") if not line.strip() in ['\n', '']])
 for ind, char in enumerate(input):
     if ind < skip_ind:
         continue
@@ -65,7 +65,7 @@ contents = re.sub(r'(?<=\([a-z]\))\n', ' ', contents)
 contents = re.sub(r'  ', ' ', contents)
 contents = re.sub(r'»\n{0,}', '\n\n', contents)
 contents = re.sub(r'\n{0,}«', '\n\n\n\n', contents)
-contents = re.sub(r'†\n+', '\n\n', contents)
+contents = re.sub(r'†\n+', '\n', contents)
 contents = re.sub(r'†', '', contents)
 
 # write to output

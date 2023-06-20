@@ -21,7 +21,7 @@ def matcher(match_cmds):
 
 @matcher(['section', 'section*'])
 def header_adjust(cmd):
-    return f"## {clean_command(cmd)}\n"
+    return f"\n## {clean_command(cmd)}\n"
 
 @matcher(['Question'])
 def question_adjust(cmd):
@@ -44,7 +44,7 @@ def handle_part(cmd):
         subpart += 1
         return f"\n- ({int_to_roman(subpart)})"
     part = add_char(part, 1)
-    return f"({part})"
+    return f"\n({part})"
 
 @matcher(['href'])
 def link_parser(cmd):
@@ -55,7 +55,7 @@ def link_parser(cmd):
 def parse_notelinks(cmd):
     raw_params = get_params(cmd)
     params = [p for p in raw_params[0].split('\\') if p != '']
-    
+
     parsed = ""
     for p in params:
         link_vals = get_params(p)

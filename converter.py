@@ -23,7 +23,7 @@ def matcher(match_cmds):
 
 @matcher(['section', 'section*'])
 def header_adjust(cmd):
-    return f"## {clean_command(cmd)}\n"
+    return f"\n## {clean_command(cmd)}\n"
 
 @matcher(['Question'])
 def question_adjust(cmd):
@@ -46,7 +46,7 @@ def handle_part(cmd):
         subpart += 1
         return f"\n- ({int_to_roman(subpart)})"
     part = add_char(part, 1)
-    return f"({part})"
+    return f"\n({part})"
 
 @matcher(['href'])
 def link_parser(cmd):
@@ -57,7 +57,7 @@ def link_parser(cmd):
 def parse_notelinks(cmd):
     raw_params = get_params(cmd)
     params = [p for p in raw_params[0].split('\\') if p != '']
-    
+
     parsed = ""
     for p in params:
         link_vals = get_params(p)
@@ -103,14 +103,13 @@ def enumerate_block(cmd):
     return ""
 
 
+
 # @source https://www.geeksforgeeks.org/python-program-to-convert-integer-to-roman/
 def int_to_roman(number):
-    num = [1, 4, 5, 9, 10, 40, 50, 90,
-        100, 400, 500, 900, 1000]
-    sym = ["i", "iv", "v", "ix", "x", "xl",
-        "l", "xc", "c", "cd", "d", "cm", "m"]
+    num = [1, 4, 5, 9, 10, 40, 50, 90, 100, 400, 500, 900, 1000]
+    sym = ["i", "iv", "v", "ix", "x", "xl", "l", "xc", "c", "cd", "d", "cm", "m"]
+
     i = 12
-    
     roman = ""
     while number:
         div = number // num[i]
@@ -120,12 +119,11 @@ def int_to_roman(number):
             roman += sym[i]
             div -= 1
         i -= 1
-    
     return roman
 
 # gets the clean word only command
 def clean_command(command):
-    return re.search('\{(.+)\}', command).group(0).removesuffix('}').removeprefix('{')
+    return re.search('(?<=\{)(.+)(?=\})', command).group(0)
 
 # gets the character x places away from the input character
 def add_char(character, x):
@@ -147,6 +145,8 @@ def get_command(str, ind):
         elif bracket_nest > 0 and c == '}':
             bracket_nest -= 1
         cmd += c
+
+    return cmd, len(str)
 
 # given a latex command, return a list with all the bracket parameters
 def get_params(cmd):
@@ -213,7 +213,7 @@ skip_commands = False
 skip_ind = -1
 
 # process contents
-input = "\n".join([line.strip() for line in input.split('\n')])
+input = "\n".join([line.strip() for line in input.split("\n") if not line.strip() in ['\n', '']])
 for ind, char in enumerate(input):
     if ind < skip_ind:
         continue
@@ -233,7 +233,7 @@ contents = re.sub(r'(?<=\([a-z]\))\n', ' ', contents)
 contents = re.sub(r'  ', ' ', contents)
 contents = re.sub(r'»\n{0,}', '\n\n', contents)
 contents = re.sub(r'\n{0,}«', '\n\n\n\n', contents)
-contents = re.sub(r'†\n+', '\n\n', contents)
+contents = re.sub(r'†\n+', '\n', contents)
 contents = re.sub(r'†', '', contents)
 
 # write to output
