@@ -42,7 +42,7 @@ def handle_part(cmd):
     global part, subpart, enumerating
     if enumerating:
         subpart += 1
-        return f"- ({int_to_roman(subpart)})"
+        return f"\n- ({int_to_roman(subpart)})"
     part = add_char(part, 1)
     return f"({part})"
 

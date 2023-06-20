@@ -14,4 +14,4 @@ Instructions for use:
 
 Note: You can edit the name of the input and/or output files in `script.py` if you want
 
-Also note: If you are familiar with RegEx or manipulating strings in Python, feel free to also edit how the script parses and formats the files
+Also note: If you are familiar with RegEx or manipulating strings in Python, feel free to edit how the script parses and formats the files
