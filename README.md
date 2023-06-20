@@ -11,8 +11,7 @@ Requirements:
 Instructions for use:
 1. Download the source code and put it in its own folder
 2. Put the .tex file in the same folder as the scripts
-3. Rename the .tex file to "input.tex"
-4. In the terminal, run `python script.py`
-5. Enjoy the outputted .md file
+3. In the terminal, run `python script.py`
+4. The .md file will be outputted and ready to go
 
 Note: Feel free to edit how the files are parsed and formatted in `script.py`
