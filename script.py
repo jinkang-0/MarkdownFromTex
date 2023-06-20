@@ -1,5 +1,6 @@
 from helper import get_command
 from commands import matchers
+import re
 
 # config
 input_file_name = 'input.tex'
@@ -40,8 +41,12 @@ for ind, char in enumerate(input):
 
 # beautify processed contents
 contents = processed.strip() + '\n'
-
-##### add any other post-modifications here #####
+contents = re.sub(r'(?<=\([a-z]\))\n', ' ', contents)
+contents = re.sub(r'  ', ' ', contents)
+contents = re.sub(r'»\n{0,}', '\n\n', contents)
+contents = re.sub(r'\n{0,}«', '\n\n\n\n', contents)
+contents = re.sub(r'†\n+', '\n\n', contents)
+contents = re.sub(r'†', '', contents)
 
 # write to output
 with open(output_file_name, 'w') as output:

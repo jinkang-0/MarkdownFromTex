@@ -27,7 +27,7 @@ def header_adjust(cmd):
 def question_adjust(cmd):
     global question
     question += 1
-    return f"## {question}. {clean_command(cmd)}\n"
+    return f"«## {question}. {clean_command(cmd)}»\n"
 
 @matcher(['begin', 'end'])
 def handle_block(cmd):
@@ -59,7 +59,7 @@ def parse_notelinks(cmd):
     parsed = ""
     for p in params:
         link_vals = get_params(p)
-        parsed += f"[{link_vals[1]}]({link_vals[0]})\n"
+        parsed += f"[{link_vals[1]}]({link_vals[0]})\n†"
     return parsed
 
 
