@@ -62,6 +62,9 @@ def parse_notelinks(cmd):
         parsed += f"[{link_vals[1]}]({link_vals[0]})\n†"
     return parsed
 
+@matcher(['LaTeX'])
+def parse_latex(cmd):
+    return "LaTeX"
 
 #####################################################
 #                                                   #
