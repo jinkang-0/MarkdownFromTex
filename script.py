@@ -1,10 +1,20 @@
 from helper import get_command
 from commands import matchers
 import re
+import os
 
-# config
-input_file_name = 'input.tex'
-output_file_name = 'output.md'
+# get file name
+input_file_name = ''
+output_file_name = ''
+
+for file in os.listdir('./'):
+    if file.endswith('.tex'):
+        input_file_name = file
+        output_file_name = file[:-4] + ".md"
+        break
+
+if input_file_name == '':
+    raise RuntimeError("No TeX file detected! Move the desired TeX file you want to convert to .md in the same directory (folder) as this script.")
 
 # read input file
 with open(input_file_name, 'r') as f:
