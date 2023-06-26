@@ -6,6 +6,7 @@ part = '`'
 enumerating = False
 subpart = 0
 question = 0
+bulleting = False
 
 """
 match_cmds: a list of commands that will trigger the function
@@ -39,10 +40,12 @@ def handle_block(cmd):
 
 @matcher(['Part', 'item'])
 def handle_part(cmd):
-    global part, subpart, enumerating
+    global part, subpart, enumerating, bulleting
     if enumerating:
         subpart += 1
         return f"\n- ({int_to_roman(subpart)})"
+    elif bulleting:
+        return "-"
     part = add_char(part, 1)
     return f"\n({part})"
 
@@ -65,6 +68,10 @@ def parse_notelinks(cmd):
 @matcher(['LaTeX'])
 def parse_latex(cmd):
     return "LaTeX"
+
+@matcher(['frac', 'hdots', 'forall', 'in', 'mathbb', 'le', 'ge', 'nmid', 'wedge', 'cup', 'subseteq'])
+def math_cmd(cmd):
+    return f"\\{cmd}"
 
 #####################################################
 #                                                   #
@@ -99,3 +106,13 @@ def enumerate_block(cmd):
     global enumerating
     enumerating = not enumerating
     return ""
+
+@block_matcher(['itemize'])
+def handle_itemize(cmd):
+    global bulleting
+    bulleting = not bulleting
+    return ""
+
+@block_matcher(['align', 'align*'])
+def align_block(cmd):
+    return "$$"
