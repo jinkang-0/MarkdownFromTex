@@ -1,4 +1,3 @@
-__pycache__/
 *.tex
 *.md
 !README.md

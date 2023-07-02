@@ -1,7 +1,10 @@
 import re
 import os
 import sys
-import re
+
+###########
+# HELPERS #
+###########
 
 # @source https://www.geeksforgeeks.org/python-program-to-convert-integer-to-roman/
 def int_to_roman(number):
@@ -36,12 +39,12 @@ def get_command(str, ind):
     cmd = ""
     bracket_nest = 0
     for i, c in enumerate(str[ind:]):
-        if c == '{':
+        if c in ['{', '[']:
             bracket_nest += 1
 
         if bracket_nest <= 0 and c in [' ', '\\', '\n', '.']:
             return cmd, i + ind
-        elif bracket_nest > 0 and c == '}':
+        elif bracket_nest > 0 and c in ['}', ']']:
             bracket_nest -= 1
         cmd += c
 
@@ -54,14 +57,14 @@ def get_params(cmd):
     param = ""
 
     for c in cmd:
-        if c == "{":
+        if c in ['{', '[']:
             bracket_nest += 1
 
             # clear params after passing first bracket
             if bracket_nest == 1:
                 param = ""
                 continue
-        elif c == "}":
+        elif c in ['}', ']']:
             bracket_nest -= 1
             if bracket_nest == 0:
                 params.append(param)
@@ -70,12 +73,19 @@ def get_params(cmd):
     return params
 
 
+
+############
+# COMMANDS #
+############
+
+# vars for command matchers
 matchers = []
 block_matchers = []
 part = '`'
 enumerating = False
 subpart = 0
 question = 0
+figures = []
 bulleting = False
 
 """
@@ -135,6 +145,45 @@ def parse_notelinks(cmd):
         parsed += f"[{link_vals[1]}]({link_vals[0]})\n†"
     return parsed
 
+@matcher(['textbf'])
+def bold_text(cmd):
+    return f"**{get_params(cmd)[0]}**"
+
+@matcher(['emph'])
+def italic_text(cmd):
+    param = get_params(cmd)[0]
+    content = process_content(param)
+    return f"*{content}*"
+
+@matcher(['includegraphics'])
+def add_images(cmd):
+    return f"![[{get_params(cmd)[1]}]]"
+
+@matcher(['caption'])
+def image_caption(cmd):
+    content = process_content(get_params(cmd)[0])
+    return f"> {content.strip()}"
+
+@matcher(['label'])
+def handle_label(cmd):
+    param = get_params(cmd)[0]
+    if param.startswith('fig:'):
+        global figures
+        fig = param[4:]
+        figures.append(fig)
+        return f"Figure {len(figures)}: "
+    return ""
+
+@matcher(['ref'])
+def handle_ref(cmd):
+    param = get_params(cmd)[0]
+    if param.startswith('fig:'):
+        global figures
+        fig = param[4:]
+        index = figures.index(fig) + 1
+        return f"{index}"
+    return ""
+
 @matcher(['LaTeX'])
 def parse_latex(cmd):
     return "LaTeX"
@@ -143,11 +192,10 @@ def parse_latex(cmd):
 def math_cmd(cmd):
     return f"\\{cmd}"
 
-#####################################################
-#                                                   #
-# This section handles \begin{} and \end{} commands #
-#                                                   #
-#####################################################
+
+##
+## this section handles block commands
+##
 
 """
 blocks: list of blocks that will trigger the function
@@ -161,10 +209,6 @@ def block_matcher(blocks):
         })
     return decorator
 
-@block_matcher(['center'])
-def center_block(cmd):
-    return "```"
-
 @block_matcher(['Parts'])
 def parts_block(cmd):
     global part
@@ -173,8 +217,9 @@ def parts_block(cmd):
 
 @block_matcher(['enumerate'])
 def enumerate_block(cmd):
-    global enumerating
-    enumerating = not enumerating
+    global enumerating, subpart
+    enumerating = cmd.startswith('begin')
+    subpart = 0
     return ""
 
 @block_matcher(['itemize'])
@@ -186,6 +231,43 @@ def handle_itemize(cmd):
 @block_matcher(['align', 'align*'])
 def align_block(cmd):
     return "$$"
+
+
+
+
+#########################
+# BEGIN FILE PROCESSING #
+#########################
+
+# process backslash commands
+def process_command(command):
+    for match in matchers:
+        for cmd in match["commands"]:
+            if command.startswith(cmd):
+                return match["adjust"](command)
+    return ""
+
+# process contents
+def process_content(string):
+    skip_commands = False
+    skip_ind = -1
+    output_string = ""
+
+    for ind, char in enumerate(string):
+        if ind < skip_ind:
+            continue
+
+        # filter content to process commands
+        if not skip_commands and char == '\\':
+            cmd, skip_ind = get_command(string, ind+1)
+            output_string += process_command(cmd)
+            continue
+        elif char == '$':
+            skip_commands = not skip_commands
+
+        output_string += char
+
+    return output_string
 
 
 
@@ -209,43 +291,23 @@ else:
             break
 
 if input_file_name == '':
-    raise RuntimeError("No TeX file detected! Move the desired TeX file you want to convert to .md in the same directory (folder) as this script.")
+    raise RuntimeError("No TeX file detected! Move the desired TeX file you want to convert in the same directory (folder) as this script.")
 
 # read input file
 with open(input_file_name, 'r') as f:
     input = f.read()
 
-# process backslash commands
-def process_command(command):
-    for match in matchers:
-        for cmd in match["commands"]:
-            if command.startswith(cmd):
-                return match["adjust"](command)
-    return ""
-
-# vars
-contents = ""
-processed = ""
-skip_commands = False
-skip_ind = -1
-
-# process contents
+# process input
 input = "\n".join([line.strip() for line in input.split("\n") if not line.strip() in ['\n', '']])
-for ind, char in enumerate(input):
-    if ind < skip_ind:
-        continue
+processed = process_content(input)
+contents = processed.strip() + '\n'
 
-    # filter content to process commands
-    if not skip_commands and char == '\\':
-        cmd, skip_ind = get_command(input, ind+1)
-        processed += process_command(cmd)
-        continue
-    elif char == '$':
-        skip_commands = not skip_commands
-    processed += char
+# convert latex cmds to mathjax
+contents = re.sub(r'\\[RNZQC]', lambda match: f"\\mathbb{{{match.group(0)[1:]}}}", contents)
+contents = re.sub(r'hdots', "dots", contents)
 
 # beautify processed contents
-contents = processed.strip() + '\n'
+contents = re.sub(r'~', ' ', contents)
 contents = re.sub(r'(?<=\([a-z]\))\n', ' ', contents)
 contents = re.sub(r'  ', ' ', contents)
 contents = re.sub(r'»\n{0,}', '\n\n', contents)
