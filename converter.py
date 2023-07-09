@@ -32,7 +32,11 @@ def add_char(character, x):
     return chr(ord(character) + x)
 
 # gets the first command from a string and an index in the string
+# starts after the first \
 def get_command(str, ind):
+    if ind > len(str):
+        return "", ind
+    
     if str[ind] in ['\\', '&', '$']:
         return str[ind], ind
 
@@ -49,6 +53,21 @@ def get_command(str, ind):
         cmd += c
 
     return cmd, len(str)
+
+def find_bracket(str, ind):
+    bracket_nest = 0
+    bracket_str = ""
+
+    for i, c in enumerate(str[ind:]):
+        if c == '[':
+            bracket_nest += 1
+        
+        if bracket_nest == 0:
+            return bracket_str, i + ind
+        elif bracket_nest > 0 and c == ']':
+            bracket_nest -= 1
+        bracket_str += c
+
 
 # given a latex command, return a list with all the bracket parameters
 def get_params(cmd):
@@ -71,6 +90,48 @@ def get_params(cmd):
                 param = ""
         param += c
     return params
+
+# starts at the \ in \begin{block}
+def get_block(str, ind):
+    block_content = ""
+    block_nest = 0
+    block_type = ""
+    skip_ind = -1
+
+    for i, c in enumerate(str[ind:]):
+        if ind + i > skip_ind and c == '\\':
+            cmd, skip_ind = get_command(str, ind+i+1)
+            is_begin = cmd.startswith('begin')
+            is_end = cmd.startswith('end')
+
+            if is_begin or is_end:
+                # match block type
+                params = get_params(cmd)
+                btype = params[0]
+                if block_type == "":
+                    block_type = btype
+                if block_type != btype:
+                    block_content += c
+                    continue
+
+                # begin and end cases
+                if is_begin:
+                    block_nest += 1
+                elif is_end and block_type == btype:
+                    block_nest -= 1
+
+        # termination condition
+        if block_nest == 0:
+            return block_content + '\\' + cmd, block_type, ind + i
+        block_content += c
+
+    return (None, None, -1)
+
+# only get the content without \begin and \end
+def clean_block(string):
+    no_begin = re.sub(r'^\\begin{[\w\*]+}(\[[\w{()}.*]*\])*(\{[|\d\s\w]*\})*', '', string)
+    no_end = re.sub(r'\\end{[\w\*]+}$', '', no_begin)
+    return no_end
 
 
 
@@ -100,6 +161,10 @@ def matcher(match_cmds):
         })
     return decorator
 
+@matcher(['documentclass', 'usepackage', 'def', 'title', 'maketitle', 'fontsize', 'selectfont', 'vspace', 'end', 'hline', 'centering'])
+def ignored_commands(cmd):
+    return ""
+
 @matcher(['section', 'section*'])
 def header_adjust(cmd):
     return f"\n## {clean_command(cmd)}\n"
@@ -110,22 +175,22 @@ def question_adjust(cmd):
     question += 1
     return f"«## {question}. {clean_command(cmd)}»\n"
 
-@matcher(['begin', 'end'])
-def handle_block(cmd):
-    block_type = clean_command(cmd)
-    for block_matcher in block_matchers:
-        if block_type in block_matcher["blocks"]:
-            return block_matcher["adjust"](cmd)
-    return ""
-
-@matcher(['Part', 'item'])
-def handle_part(cmd):
-    global part, subpart, enumerating, bulleting
-    if enumerating:
+@matcher(['item'])
+def handle_item(cmd):
+    global subpart, enumerating, bulleting
+    if enumerating == 'a':
+        subpart += 1
+        return f"({add_char('`', subpart)})"
+    elif enumerating == 'i':
         subpart += 1
         return f"\n- ({int_to_roman(subpart)})"
     elif bulleting:
         return "-"
+    return ""
+
+@matcher(['Part'])
+def handle_part(cmd):
+    global part
     part = add_char(part, 1)
     return f"\n({part})"
 
@@ -188,10 +253,6 @@ def handle_ref(cmd):
 def parse_latex(cmd):
     return "LaTeX"
 
-@matcher(['frac', 'hdots', 'forall', 'in', 'mathbb', 'le', 'ge', 'nmid', 'wedge', 'cup', 'subseteq'])
-def math_cmd(cmd):
-    return f"\\{cmd}"
-
 
 ##
 ## this section handles block commands
@@ -209,29 +270,76 @@ def block_matcher(blocks):
         })
     return decorator
 
+@block_matcher(['document', 'figure'])
+def do_nothing_block(content):
+    clean_content = clean_block(content)
+    return process_content(clean_content)
+
+@block_matcher(['center'])
+def center_block(content):
+    clean_content = clean_block(content)
+    slashes_removed = ""
+    for line in clean_content.splitlines(True):
+        slashes_removed += re.sub(r'\\\\$', '', line)
+    return process_content(slashes_removed)
+
 @block_matcher(['Parts'])
-def parts_block(cmd):
+def parts_block(content):
     global part
     part = "`"
-    return ""
+    clean_content = clean_block(content)
+    return process_content(clean_content)
 
 @block_matcher(['enumerate'])
-def enumerate_block(cmd):
+def enumerate_block(content):
     global enumerating, subpart
-    enumerating = cmd.startswith('begin')
+    cmd, skip_ind = get_command(content, 1)
+    params = get_params(cmd)
+    enumerate_style = params[1]
+
+    enumerating = re.search(r'\w', enumerate_style).group(0)
     subpart = 0
-    return ""
+    clean_content = clean_block(content)
+    enumerated_string = process_content(clean_content)
+    enumerating = ""
+    return enumerated_string
 
 @block_matcher(['itemize'])
-def handle_itemize(cmd):
+def handle_itemize(content):
     global bulleting
-    bulleting = not bulleting
-    return ""
+    bulleting = True
+    clean_content = clean_block(content)
+    bulleted = process_content(clean_content)
+    bulleting = False
+    return bulleted
 
 @block_matcher(['align', 'align*'])
-def align_block(cmd):
-    return "$$"
+def align_block(content):
+    clean_content = clean_block(content)
+    processed_content = process_content(clean_content)
+    return "$$\\begin{align}" + processed_content + "\\end{align}$$"
 
+@block_matcher(['tabular'])
+def tabular_block(content):
+    clean_content = clean_block(content)
+    processed_content = process_content(clean_content)
+    table = ""
+    lines = processed_content.strip().splitlines()
+    for i, line in enumerate(lines):
+        processed_line = re.sub(r'\&', '|', line.strip())
+        processed_line = re.sub(r'\\\\$', '', processed_line)
+        table += '| ' + processed_line + ' |\n'
+
+        # make table separator
+        if i == 0:
+            separator_line = "|---"
+            for c in line:
+                if c == '&':
+                    separator_line += "|---"
+            separator_line += '|\n'
+            table += separator_line
+    
+    return table
 
 
 
@@ -245,6 +353,13 @@ def process_command(command):
         for cmd in match["commands"]:
             if command.startswith(cmd):
                 return match["adjust"](command)
+    return f"\\{command}"
+
+# process blocks
+def process_block(btype, content):
+    for match in block_matchers:
+        if btype in match["blocks"]:
+            return match["adjust"](content)
     return ""
 
 # process contents
@@ -259,9 +374,30 @@ def process_content(string):
 
         # filter content to process commands
         if not skip_commands and char == '\\':
+            # for the weird \[\] syntax without $$
+            if string[ind+1] == '[':
+                str, skip_ind = find_bracket(string, ind+1)
+                format_str = re.sub(r'\\]', '', str[1:])
+                output_string += f"$${format_str}$$"
+                continue
+
+            # double backslash exception
+            elif string[ind+1] == '\\':
+                output_string += '\\'
+                continue
+
+            # get commands
             cmd, skip_ind = get_command(string, ind+1)
-            output_string += process_command(cmd)
+            
+            # block vs single line command
+            if cmd.startswith('begin'):
+                content, block_type, skip_ind = get_block(string, ind)
+                output_string += process_block(block_type, content)
+            else:
+                output_string += process_command(cmd)
             continue
+
+        # catch math mode
         elif char == '$':
             skip_commands = not skip_commands
 
